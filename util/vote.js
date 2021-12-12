@@ -30,7 +30,7 @@ module.exports = class Vote {
         this.count = this.smash / (this.smash + this.pass) * 100;
         if (isFinite(this.count)) {
             this.result = "Vote ended!. Chat says ";
-            if (this.count > 50)
+            if (this.count >= 50)
                 this.result += "niknoc1SMASH";
             else {
                 this.count = 100 - this.count;
