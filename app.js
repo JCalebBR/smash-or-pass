@@ -1,5 +1,8 @@
-const { CronJob } = require("cron");
-const path = require("path");
+const Logging = require("./util/log");
+const Log = new Logging();
+
+const Voting = require("./util/vote");
+const Vote = new Voting();
 
 require('dotenv').config();
 
@@ -11,7 +14,6 @@ const client = new tmi.Client({
         reconnect: true,
         secure: true
     },
-
     identity: {
         username: `${process.env.TWITCH_USERNAME}`,
         password: `oauth:${process.env.TWITCH_OAUTH}`
@@ -19,48 +21,33 @@ const client = new tmi.Client({
     channels: [`${process.env.TWITCH_CHANNEL}`]
 });
 
-const eventsDirPath = path.resolve(__dirname, "./events");
-const commandsDirPath = path.resolve(__dirname, "./commands");
+client.connect().catch(Log.error);
 
-client.connect().catch(console.error);
-
-let smash = 0;
-let pass = 0;
-let results = 0;
-let win;
-client.on('message', (channel, tags, message, self) => {
-    // Lack of this statement or it's inverse (!self) will make it in active
+client.on('message', async (channel, tags, message, self) => {
     if (self) return;
+    try {
+        let messageLC = message.toLowerCase();
 
-    if (message.toLowerCase().includes("smash") || message.toLowerCase().includes("niknoc1smash")) {
-        smash += 1;
-        console.log("smash!");
-    }
-    if (message.toLowerCase().includes("pass") || message.toLowerCase().includes("niknoc1pass")) {
-        pass += 1;
-        console.log("pass!");
-    }
+        if (messageLC.includes("smash") || messageLC.includes("niknoc1smash"))
+            Vote.addSmash();
 
-    if (message.toLowerCase() === "!results") {
-        results = smash / (smash + pass) * 100;
-        win = "Chat says ";
-        if (results > 50) {
-            win += "niknoc1SMASH";
-        } else {
-            results = 100 - results;
-            win += "niknoc1Pass";
+        if (messageLC.includes("pass") || messageLC.includes("niknoc1pass"))
+            Vote.addPass();
+
+        if (tags.mod || tags.username === "niknocturnal") {
+            if (messageLC === "!results") {
+                client.say(channel, `${Vote.results()}`);
+                setTimeout(() => Vote.reset(), 15000);
+            }
+            if (messageLC === "!clear" || messageLC === "!reset")
+                client.say(channel, `${Vote.reset()}`);
+
+            if (messageLC === "!ping") {
+                client.say(channel, `pong!`);
+                Log.log(`${message}`);
+            }
         }
-
-        client.say(channel, `@niknocturnal ${win} with ${results.toFixed(1)}% of all votes`);
-    }
-    if (message.toLowerCase() === "!clear") {
-        smash = 0;
-        pass = 0;
-        client.say(channel, `@niknocturnal votes cleared!`);
-        console.log("clear!");
-    }
-    if (message.toLowerCase() === "!ping") {
-        client.say(channel, `pong!`);
-        console.log(`${message}`);
+    } catch (error) {
+        Log.error(error);
     }
 });
